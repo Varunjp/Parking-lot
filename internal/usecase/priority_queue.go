@@ -5,6 +5,7 @@ import "container/heap"
 type Request struct {
 	Vehicle  interface{}
 	Priority int
+	RespChan chan Result 
 }
 
 type PQ []Request

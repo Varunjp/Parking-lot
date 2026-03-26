@@ -5,8 +5,8 @@ type ParkingRepository interface {
 }
 
 type VehicleRepository interface {
-	GetLastEntry(vehicleID string) (VehicleRecord, bool)
-	SaveEntry(vehicleID string, record VehicleRecord)
+	GetLastEntry(vehicleID string) (map[int]int64, bool)
+	SaveEntry(vehicleID string, levelID int, ts int64)
 }
 
 type VehicleRecord struct {
