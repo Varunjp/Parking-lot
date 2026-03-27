@@ -9,10 +9,12 @@ import (
 )
 
 type Config struct {
-	ParkingLevels  int
-	SlotsPerLevel  int
-	ReEntrySeconds int64
-	HttpPort       string 
+	ParkingLevels  			int
+	SmallSlotsPerLevel		int 
+	MediumSlotsPerLevel     int 
+	LargeSlotsPerLevel      int 
+	ReEntrySeconds 			int64
+	HttpPort       			string 
 }
 
 func Load() *Config {
@@ -24,7 +26,9 @@ func Load() *Config {
 
 	return &Config{
 		ParkingLevels: getInt("PARKING_LEVELS",2),
-		SlotsPerLevel: getInt("SLOTS_PER_LEVEL",5),
+		SmallSlotsPerLevel: getInt("SMALL_SLOTS_PER_LEVEL",5),
+		MediumSlotsPerLevel: getInt("MEDIUM_SLOTS_PER_LEVEL",3),
+		LargeSlotsPerLevel: getInt("LARGE_SLOTS_PER_LEVEL",2),
 		ReEntrySeconds: int64(getInt("REENTRY_SECONDS",3600)),
 		HttpPort: getVal("HTTP_PORT","8080"),
 	}

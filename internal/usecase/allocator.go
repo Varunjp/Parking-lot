@@ -22,61 +22,49 @@ func (a *Allocator) Allocate(vehicle domain.Vehicle)(int,int,error) {
 	now := time.Now().Unix()
 
 	var bestLevel *domain.Level
+	var bestPool *domain.SlotPool
 	min := math.MaxInt
+	blockedLevels := 0
+	totalLevels := 0
 
 	for _,lvl := range a.parkingRepo.GetLevels() {
-		pool,err := getPool(lvl,vehicle.Type)
-		if err != nil {
-			return 0,0,err 
+		totalLevels++
+		
+		pool,ok := lvl.GetPool(vehicle.Type)
+		if !ok {
+			return 0,0,domain.ErrInvalidType
 		}
-		if pool == nil || len(pool.FreeSlots) == 0{
+		if pool == nil || pool.AvailableCount() == 0{
 			continue
 		}
-
 		if hasHistory {
 			if lastTime,ok := rec[lvl.ID]; ok {
 				if now-lastTime < a.reentrySec {
+					blockedLevels++
 					continue
 				}
 			}
 		}
-
-		if len(pool.FreeSlots) > 0 {
-			if len(pool.Occupied) < min {
-				min = len(pool.Occupied)
-				bestLevel = lvl 
-			}
+		if len(pool.Occupied) < min {
+			min = len(pool.Occupied)
+			bestLevel = lvl 
+			bestPool = pool
 		}
 	}
 
 	if bestLevel == nil {
-		if hasHistory {
+		if hasHistory && blockedLevels == totalLevels {
 			return 0,0,domain.ErrReEntry
 		}
 		return 0,0,domain.ErrParkingFull
 	}
 
-	pool,err := getPool(bestLevel,vehicle.Type)
+	slot,err := bestPool.Allocate()
 	if err != nil {
 		return 0,0,err 
 	}
-	slot := pool.FreeSlots[len(pool.FreeSlots)-1]
-	pool.FreeSlots = pool.FreeSlots[:len(pool.FreeSlots)-1]
-	pool.Occupied[slot] = true
 
 	a.vehicleRepo.SaveEntry(vehicle.ID,bestLevel.ID,now)
 
 	return bestLevel.ID,slot,nil 
-}
-
-func getPool(l *domain.Level,t domain.VehicleType) (*domain.SlotPool,error) {
-	switch t {
-	case domain.Small:
-		return l.SmallSlots,nil
-	case domain.Medium:
-		return l.MediumSlots,nil
-	case domain.Large:
-		return l.LargeSlots,nil
-	}
-	return nil,domain.ErrInvalidType
 }

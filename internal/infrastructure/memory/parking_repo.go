@@ -3,9 +3,9 @@ package memory
 import "parking-lot/internal/domain"
 
 type ParkingRepo struct {
-	Levels []*domain.Level
+	ParkingLot  *domain.ParkingLot
 }
 
 func (r *ParkingRepo) GetLevels()[]*domain.Level {
-	return r.Levels
+	return r.ParkingLot.Levels
 }

@@ -15,9 +15,14 @@ func main() {
 	cfg := config.Load()
 
 	vehicleRepo := memory.NewVehicleRepo()
+	levels,err := initLevels(cfg)
+
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	parkingRepo := &memory.ParkingRepo{
-		Levels: initLevels(cfg),
+		ParkingLot: levels,
 	}
 
 	allocator := usecase.NewAllocator(parkingRepo,vehicleRepo,cfg.ReEntrySeconds)
@@ -36,28 +41,35 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+cfg.HttpPort,nil))
 }
 
-func initLevels(cfg *config.Config) []*domain.Level {
+func initLevels(cfg *config.Config) (*domain.ParkingLot,error) {
 
 	var levels []*domain.Level
 
 	for i:=1; i <= cfg.ParkingLevels; i++ {
-		levels = append(levels, &domain.Level{
-			ID: i,
-			SmallSlots: &domain.SlotPool{
-				FreeSlots: generateSlot(cfg.SlotsPerLevel),
-				Occupied: make(map[int]bool),
-			},
-			MediumSlots: &domain.SlotPool{
-				FreeSlots: generateSlot(cfg.SlotsPerLevel),
-				Occupied: make(map[int]bool),
-			},
-			LargeSlots: &domain.SlotPool{
-				FreeSlots: generateSlot(cfg.SlotsPerLevel),
-				Occupied: make(map[int]bool),
-			},
-		})
+		smallPool := &domain.SlotPool{
+			FreeSlots: generateSlot(cfg.SmallSlotsPerLevel),
+			Occupied: make(map[int]bool),
+		}
+
+		mediumPool := &domain.SlotPool{
+			FreeSlots: generateSlot(cfg.MediumSlotsPerLevel),
+			Occupied: make(map[int]bool),
+		}
+
+		largePool := &domain.SlotPool{
+			FreeSlots: generateSlot(cfg.LargeSlotsPerLevel),
+			Occupied: make(map[int]bool),
+		}
+
+		level,err := domain.NewLevel(i,smallPool,mediumPool,largePool)
+		if err != nil {
+			return nil,err 
+		}
+
+		levels = append(levels, level)
 	}
-	return levels
+
+	return &domain.ParkingLot{Levels: levels},nil 
 }
 
 func generateSlot(n int) []int {
