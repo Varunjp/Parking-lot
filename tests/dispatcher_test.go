@@ -6,11 +6,21 @@ import (
 	mock "parking-lot/tests/mocks"
 	"sync"
 	"testing"
-	"time"
 )
 
+// TestDispatcher_PriorityOrder verifies that higher-priority vehicles
+// are allocated slots before lower-priority ones under concurrent requests.
+//
+// Priority Order Expected:
+//   1. Emergency
+//   2. VIP
+//   3. Regular
+//
+// This test simulates concurrent incoming requests and ensures that
+// dispatcher enforces priority correctly despite goroutine scheduling.
 func TestDispatcher_PriorityOrder(t *testing.T) {
 
+	// Arrange: create a parking level with 10 available slots
 	level := createLevel(1,10)
 
 	parkingRepo := &mock.MockParkingRepo{
@@ -24,6 +34,7 @@ func TestDispatcher_PriorityOrder(t *testing.T) {
 	allocator := usecase.NewAllocator(parkingRepo,vehicleRepo,3600)
 	dispatcher := usecase.NewDispatcher(allocator)
 
+	// Input vehicles with different priorities
 	vehicles := []domain.Vehicle{
 		{ID: "V1",Type: domain.Small, CustomerType: domain.Regular},
 		{ID: "V2",Type: domain.Small, CustomerType: domain.Emergency},
@@ -31,15 +42,18 @@ func TestDispatcher_PriorityOrder(t *testing.T) {
 	}
 
 	results := make(map[string]usecase.Result)
-	var mu sync.Mutex
+	var mu sync.Mutex     // protects results map from race conditions
 	var wg sync.WaitGroup
 	
+	// Act: simulate concurrent requests
 	for _,v := range vehicles {
 		wg.Add(1)
 		go func(v domain.Vehicle) {
 			defer wg.Done()
+			
 			res := dispatcher.AddRequest(v)
 			
+			// Safely store result
 			mu.Lock()
 			results[v.ID] = res 
 			mu.Unlock()
@@ -48,6 +62,7 @@ func TestDispatcher_PriorityOrder(t *testing.T) {
 
 	wg.Wait()
 
+	// Assert: verify priority-based allocation order
 	if results["V2"].Slot != 1 {
 		t.Fatalf("expected Emergency to get slot 1, got %d", results["V2"].Slot)
 	}
@@ -61,8 +76,16 @@ func TestDispatcher_PriorityOrder(t *testing.T) {
 	}
 }
 
+// TestDispatcher_ConcurrentRequests ensures that the dispatcher
+// can safely handle multiple concurrent requests without:
+//   - race conditions
+//   - duplicate slot allocation
+//   - missed allocations
+//
+// This test does NOT verify priority, only correctness under concurrency.
 func TestDispatcher_ConcurrentRequests(t *testing.T) {
 
+	// Arrange
 	level := createLevel(1, 50)
 
 	parkingRepo := &mock.MockParkingRepo{
@@ -76,23 +99,31 @@ func TestDispatcher_ConcurrentRequests(t *testing.T) {
 	allocator := usecase.NewAllocator(parkingRepo, vehicleRepo, 3600)
 	dispatcher := usecase.NewDispatcher(allocator)
 
-	total := 20
-	results := make([]usecase.Result, total)
+	totalRequests := 20
+	results := make([]usecase.Result, totalRequests)
 
-	for i := 0; i < total; i++ {
-		i := i
-		go func() {
+	var wg sync.WaitGroup
+
+	// Act: fire concurrent allocation requests
+	for i := 0; i < totalRequests; i++ {
+		wg.Add(1)
+
+		go func(index int) {
+			defer wg.Done()
+
 			v := domain.Vehicle{
-				ID:           string(rune('A' + i)),
+				ID:           string(rune('A' + index)),
 				Type: domain.Small,
 				CustomerType: domain.Regular,
 			}
-			results[i] = dispatcher.AddRequest(v)
-		}()
+
+			results[index] = dispatcher.AddRequest(v)
+		}(i)
 	}
 
-	time.Sleep(100 * time.Millisecond)
+	wg.Wait()
 
+	// Assert: verify all allocations are valid
 	for i, res := range results {
 		if res.Err != nil {
 			t.Fatalf("unexpected error at %d: %v", i, res.Err)
@@ -103,9 +134,14 @@ func TestDispatcher_ConcurrentRequests(t *testing.T) {
 	}
 }
 
+// TestDispatcher_InvalidPriority verifies that dispatcher
+// correctly rejects vehicles with unsupported/invalid priority.
+//
+// This ensures system robustness against malformed input.
 func TestDispatcher_InvalidPriority(t *testing.T) {
 
-	allocator := &usecase.Allocator{} // dummy
+	// Arrange: use a dummy allocator since validation happens before allocation
+	allocator := &usecase.Allocator{}
 	dispatcher := usecase.NewDispatcher(allocator)
 
 	v := domain.Vehicle{
@@ -114,8 +150,10 @@ func TestDispatcher_InvalidPriority(t *testing.T) {
 		CustomerType: domain.CustomerType("999"), // invalid
 	}
 
+	// Act
 	res := dispatcher.AddRequest(v)
 
+	// Assert
 	if res.Err == nil {
 		t.Fatalf("expected error for invalid priority")
 	}
