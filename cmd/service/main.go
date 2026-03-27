@@ -28,12 +28,7 @@ func main() {
 	allocator := usecase.NewAllocator(parkingRepo,vehicleRepo,cfg.ReEntrySeconds)
 	dispatcher := usecase.NewDispatcher(allocator)
 
-	go func() {
-		for {
-			dispatcher.Process()
-		}
-	}()
-
+	
 	handler := httpClient.NewHandler(dispatcher)
 	http.HandleFunc("/park",handler.Park)
 

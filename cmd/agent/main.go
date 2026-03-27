@@ -26,7 +26,7 @@ func main() {
 	fmt.Println("Agent Started")
 	fmt.Println("Enter: vehicleID vehicleType customerType")
 	fmt.Println("vehicletype (SMALL,MEDIUM,LARGE)")
-	fmt.Println("customerType (EMERGNECY,VIP,REGULAR)")
+	fmt.Println("customerType (EMERGENCY,VIP,REGULAR)")
 	fmt.Println("Example: KL01 MEDIUM VIP")
 
 	for {
