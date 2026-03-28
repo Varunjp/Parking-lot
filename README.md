@@ -135,7 +135,7 @@ Prerequisites
 
 ```bash
 # Clone Repository
-git clone https://github.com/Varunjp/waterfall.git](https://github.com/Varunjp/Parking-lot.git
+git clone https://github.com/Varunjp/Parking-lot.git
 cd Parking-lot
 
 # Set up environment variables
