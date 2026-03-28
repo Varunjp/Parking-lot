@@ -123,10 +123,10 @@ func (h *Handler) Exit(w http.ResponseWriter,r *http.Request) {
 		})
 		return 
 	}
-
+	msg := "vehicle "+req.VehicleID+" exited successfully"
 	writeJSON(w,http.StatusOK,ParkResponse{
 		Status: "success",
-		Message: "vehicle exited successfully",
+		Message: msg,
 	})
 }
 
