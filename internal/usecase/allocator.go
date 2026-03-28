@@ -35,6 +35,9 @@ func NewAllocator(p domain.ParkingRepository,v domain.VehicleRepository,reentry 
 
 func (a *Allocator) Allocate(vehicle domain.Vehicle)(int,int,error) {
 
+	if _,exists := a.vehicleRepo.GetActive(vehicle.ID); exists {
+		return 0, 0, domain.ErrAlreadyParked
+	}
 	now := time.Now().Unix()
 
 	// Fetch vehicle history for re-entry validation
@@ -90,7 +93,37 @@ func (a *Allocator) Allocate(vehicle domain.Vehicle)(int,int,error) {
 	// Persist vehicle entry for future re-entry checks
 	a.vehicleRepo.SaveEntry(vehicle.ID,selectedLevel.ID,now)
 
+	a.vehicleRepo.SaveActive(vehicle.ID,selectedLevel.ID,slot,selectedPool,now)
+
 	return selectedLevel.ID,slot,nil 
+}
+
+func (a *Allocator) Exit(vehicleID string) error {
+
+	active,ok := a.vehicleRepo.GetActive(vehicleID)
+	if !ok {
+		return domain.ErrVehicleExited
+	}
+
+	levels := a.parkingRepo.GetLevels()
+
+	var level *domain.Level
+	for _,lvl := range levels {
+		if lvl.ID == active.LevelID {
+			level = lvl 
+			break 
+		}
+	}
+
+	if level == nil {
+		return domain.ErrInvalidLevel
+	}
+
+	a.freeSlot(active.SlotType,active.SlotID)
+	
+	a.vehicleRepo.RemoveActive(vehicleID)
+
+	return nil 
 }
 
 //
@@ -133,4 +166,8 @@ func (a *Allocator) handleAllocationFailure(
 
 	// No slots available across all levels
 	return 0, 0, domain.ErrParkingFull
+}
+
+func (a *Allocator) freeSlot(pool *domain.SlotPool,slotID int) {
+	pool.Release(slotID)
 }

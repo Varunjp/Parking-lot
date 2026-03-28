@@ -36,6 +36,13 @@ var (
 
 	// ErrInvalidCapacity indicates that the parking level configuration is invalid.
 	ErrInvalidCapacity = errors.New("parking level capacity invalid")
+
+	// ErrVehicleExited indicates that the vehicle already left or not available
+	ErrVehicleExited = errors.New("vehicle not found or already exited")
+
+	ErrAlreadyParked = errors.New("vehicle already parked")
+
+	ErrInvalidLevel = errors.New("invalid level")
 )
 
 // -----------------------------------------------------------------------------

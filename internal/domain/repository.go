@@ -56,4 +56,8 @@ type VehicleRepository interface {
 	// - Must ensure consistency if multiple entries are tracked
 	// - Can be extended to store exit time or duration if needed
 	SaveEntry(vehicleID string, levelID int, ts int64)
+
+	GetActive(vehicleID string)(ActiveParking,bool)
+	SaveActive(vehicleID string,levelID int,slotID int,slotType *SlotPool,ts int64)
+	RemoveActive(vechileID string)
 }

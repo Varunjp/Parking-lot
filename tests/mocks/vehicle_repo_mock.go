@@ -1,5 +1,7 @@
 package mock
 
+import "parking-lot/internal/domain"
+
 // MockVehicleRepo is an in-memory implementation of the VehicleRepository.
 // It is primarily used for unit testing and simulates persistence behavior
 // without requiring a real database.
@@ -18,6 +20,7 @@ package mock
 // }
 type MockVehicleRepo struct {
 	Records map[string]map[int]int64
+	Active  map[string]domain.ActiveParking
 }
 
 // GetLastEntry retrieves the last recorded entry timestamps for a given vehicle.
@@ -34,7 +37,16 @@ type MockVehicleRepo struct {
 // - Caller is responsible for determining the most recent entry if needed.
 func (m *MockVehicleRepo) GetLastEntry(vehicleID string) (map[int]int64, bool) {
 	rec, ok := m.Records[vehicleID]
-	return rec, ok
+	if !ok {
+		return nil, false
+	}
+
+	copyMap := make(map[int]int64)
+	for k, v := range rec {
+		copyMap[k] = v
+	}
+
+	return copyMap, true
 }
 
 // SaveEntry stores or updates the entry timestamp for a vehicle at a specific level.
@@ -60,4 +72,34 @@ func (m *MockVehicleRepo) SaveEntry(vehicleID string, levelID int, ts int64) {
 	}
 
 	m.Records[vehicleID][levelID] = ts
+}
+
+func (m *MockVehicleRepo) GetActive(vehicleID string) (domain.ActiveParking, bool) {
+	if m.Active == nil {
+		return domain.ActiveParking{}, false
+	}
+
+	v, ok := m.Active[vehicleID]
+	return v, ok
+}
+
+func (m *MockVehicleRepo) SaveActive(vehicleID string, levelID int, slotID int,slotType *domain.SlotPool, ts int64) {
+	if m.Active == nil {
+		m.Active = make(map[string]domain.ActiveParking)
+	}
+
+	m.Active[vehicleID] = domain.ActiveParking{
+		LevelID: levelID,
+		SlotID:  slotID,
+		SlotType: slotType,
+		EntryAt: ts,
+	}
+}
+
+func (m *MockVehicleRepo) RemoveActive(vehicleID string) {
+	if m.Active == nil {
+		return
+	}
+
+	delete(m.Active, vehicleID)
 }

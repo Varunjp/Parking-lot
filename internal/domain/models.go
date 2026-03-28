@@ -49,3 +49,10 @@ type Level struct {
 	// LargeSlots manages slots for large vehicles (e.g., trucks).
 	LargeSlots  *SlotPool
 }
+
+type ActiveParking struct {
+	LevelID 	int 
+	SlotID 		int 
+	SlotType    *SlotPool
+	EntryAt     int64 
+}

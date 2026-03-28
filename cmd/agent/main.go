@@ -19,6 +19,10 @@ type ParkRequest struct {
 	CustomerType string `json:"customer_type"`
 }
 
+type ExitRequest struct {
+	VehicleID string `json:"vehicle_id"`
+}
+
 func main() {
 	cfg := config.Load()
 	port := cfg.HttpPort
@@ -41,28 +45,41 @@ func main() {
 			continue // Ignore empty input
 		}
 
-		req,err := parseInput(input)
+		cmd,data,err := parseInput(input)
 		if err != nil {
 			fmt.Println("invalid input:",err)
 			continue
 		}
+		switch cmd {
 
-		if err := sendRequest(req,port); err != nil {
-			fmt.Println("Request failed:",err)
+		case "PARK":
+			req := data.(ParkRequest)
+			if err := sendParkRequest(req,port); err != nil {
+				fmt.Println("Request failed:",err)
+			}
+		
+		case "EXIT":
+			req := data.(ExitRequest)
+			if err := sendExitRequest(req,port); err != nil {
+				fmt.Println("Request failed:",err)
+			}
+		
+		default:
+			fmt.Println("Unknown command")
 		}
 	}
 }
 
 // sendParkRequest sends the allocation request to the parking service.
 // It handles HTTP communication, response decoding, and error reporting.
-func sendRequest(req ParkRequest,port string) error {
+func sendParkRequest(req ParkRequest,port string) error {
 
 	body,err:= json.Marshal(req)
 	if err != nil {
 		return fmt.Errorf("failed to serialize request: %w",err)
 	}
 
-	url := fmt.Sprintf("https://localhost:%s/park",port)
+	url := fmt.Sprintf("http://localhost:%s/park",port)
 	
 	resp,err := http.Post(url,"application/json",bytes.NewBuffer(body))
 	if err != nil {
@@ -85,28 +102,81 @@ func sendRequest(req ParkRequest,port string) error {
 	return nil 
 }
 
+func sendExitRequest(req ExitRequest,port string) error {
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("failed to serialize request: %w", err)
+	}
+
+	url := fmt.Sprintf("http://localhost:%s/exit", port)
+
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(body))
+	if err != nil {
+		return fmt.Errorf("http request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if status, ok := result["status"].(string); ok && status == "error" {
+		return fmt.Errorf("%v", result["message"])
+	}
+
+	fmt.Println("Vehicle exited successfully")
+	return nil
+}
+
 // printInstructions displays CLI usage guidance to the user.
 // Keeping this separate improves readability of main().
 func printInstructions() {
 	fmt.Println("Parking Agent Started")
-	fmt.Println("Enter: vehicleID vehicleType customerType")
-	fmt.Println("VehicleType  -> SMALL | MEDIUM | LARGE")
-	fmt.Println("CustomerType -> EMERGENCY | VIP | REGULAR")
-	fmt.Println("Example: KL01 MEDIUM VIP")
+	fmt.Println("\nCommands:")
+
+	fmt.Println("PARK vehicleID vehicleType customerType")
+	fmt.Println("  VehicleType  -> SMALL | MEDIUM | LARGE")
+	fmt.Println("  CustomerType -> EMERGENCY | VIP | REGULAR")
+	fmt.Println("  Example: PARK KL01 MEDIUM VIP")
+
+	fmt.Println("\nEXIT vehicleID")
+	fmt.Println("  Example: EXIT KL01")
 }
 
 // parseInput converts raw CLI input into a structured ParkRequest.
 // It ensures input format correctness and normalizes values.
-func parseInput(input string) (ParkRequest, error) {
+func parseInput(input string) (string,interface{}, error) {
 	parts := strings.Fields(input) // safer than Split (handles extra spaces)
 
-	if len(parts) != 3 {
-		return ParkRequest{}, fmt.Errorf("expected 3 fields: vehicleID vehicleType customerType")
+	if len(parts) == 0 {
+		return "",nil, fmt.Errorf("empty input")
 	}
 
-	return ParkRequest{
-		VehicleID:    parts[0],
-		VehicleType:  strings.ToUpper(parts[1]),
-		CustomerType: strings.ToUpper(parts[2]),
-	}, nil
+	cmd := strings.ToUpper(parts[0])
+
+	switch cmd {
+	case "PARK":
+		if len(parts) != 4 {
+			return "",nil,fmt.Errorf("usage: PARK vehicleID vehicleType customerType")
+		}
+
+		return "PARK", ParkRequest{
+			VehicleID: parts[1],
+			VehicleType: strings.ToUpper(parts[2]),
+			CustomerType: strings.ToUpper(parts[3]),
+		},nil 
+		
+	case "EXIT":
+		if len(parts) != 2 {
+			return "",nil,fmt.Errorf("usage: EXIT vehicleID")
+		}
+
+		return "EXIT",ExitRequest{
+			VehicleID: parts[1],
+		},nil 
+	}
+
+	return "",nil,fmt.Errorf("invalid command")
 }

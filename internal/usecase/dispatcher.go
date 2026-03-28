@@ -49,7 +49,7 @@ func NewDispatcher(a *Allocator) *Dispatcher {
 // 3. Wait synchronously for allocation result
 //
 // This method blocks until the request is processed.
-func (d *Dispatcher) AddRequest(v domain.Vehicle) Result{
+func (d *Dispatcher) Park(v domain.Vehicle) Result{
 	
 	// Determine priority of the request
 	priority,err := getPriority(v.CustomerType)
@@ -61,6 +61,7 @@ func (d *Dispatcher) AddRequest(v domain.Vehicle) Result{
 	respChan := make(chan Result)
 	
 	req := Request {
+		Action: ParkAction,
 		Vehicle: v,
 		Priority: priority,
 		RespChan: respChan,
@@ -73,6 +74,26 @@ func (d *Dispatcher) AddRequest(v domain.Vehicle) Result{
 	
 	// Wait for allocation result from worker
 	return <-respChan
+}
+
+func (d *Dispatcher) Exit(vehicleID string) Result {
+
+	respChan := make(chan Result)
+
+	req := Request {
+		Action: ExitAction,
+		Vehicle: domain.Vehicle{
+			ID: vehicleID,
+		},
+		Priority: 0,
+		RespChan: respChan,
+	}
+
+	d.mu.Lock()
+	heap.Push(d.queue,req)
+	d.mu.Unlock()
+
+	return <- respChan
 }
 
 // Run is a long-running worker that continuously processes queued requests.
@@ -99,16 +120,23 @@ func (d *Dispatcher) Run() {
 		req := heap.Pop(d.queue).(Request)
 		d.mu.Unlock()
 		
-		v := req.Vehicle
+		switch req.Action {
+		case ParkAction:
+			// Allocate parking slot
+			level,slot,err := d.allocator.Allocate(req.Vehicle)
 
-		// Allocate parking slot
-		level,slot,err := d.allocator.Allocate(v)
-		
-		// Send result back to requester
-		req.RespChan <- Result{
-			Level: level,
-			Slot: slot,
-			Err: err,
+			// Send result back to requester
+			req.RespChan <- Result{
+				Level: level,
+				Slot: slot,
+				Err: err,
+			}
+		case ExitAction:
+			err :=  d.allocator.Exit(req.Vehicle.ID)
+
+			req.RespChan <- Result{
+				Err: err,
+			}
 		}
 	}
 }

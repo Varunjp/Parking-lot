@@ -88,11 +88,15 @@ func TestAllocate_ReEntryBlocked(t *testing.T) {
 	}
 
 	// Act
-	_,_,err := allocator.Allocate(vehicle)
+	levelID,_,err := allocator.Allocate(vehicle)
 
 	// Assert
 	if err == nil {
 		t.Fatalf("expected re-entry error, got nil")
+	}
+
+	if levelID == 1 {
+		t.Fatalf("expected NOT to allocate in level 1 due to re-entry restriction")
 	}
 }
 
@@ -173,5 +177,94 @@ func TestAllocate_SelectBestLevel(t *testing.T) {
 	// Assert
 	if levelID != 2 {
 		t.Fatalf("expected allocation in level 2, got %d", levelID)
+	}
+}
+
+func TestAllocate_AlreadyParked(t *testing.T) {
+
+	level := createLevel(1,2)
+
+	parkingRepo := &mock.MockParkingRepo{
+		Levels: []*domain.Level{level},
+	}
+
+	vehicleRepo := &mock.MockVehicleRepo{
+		Records: make(map[string]map[int]int64),
+		Active: map[string]domain.ActiveParking{
+			"KL01": {
+				LevelID: 1,
+				SlotID:  1,
+				EntryAt: time.Now().Unix(),
+			},
+		},
+	}
+
+	allocator := usecase.NewAllocator(parkingRepo, vehicleRepo, 3600)
+
+	vehicle := domain.Vehicle{
+		ID:   "KL01",
+		Type: domain.Small,
+	}
+
+	_, _, err := allocator.Allocate(vehicle)
+
+	if err == nil {
+		t.Fatalf("expected error for already parked vehicle")
+	}
+}
+
+func TestExit_NotFound(t *testing.T) {
+
+	level := createLevel(1,2)
+
+	parkingRepo := &mock.MockParkingRepo{
+		Levels: []*domain.Level{level},
+	}
+
+	vehicleRepo := &mock.MockVehicleRepo{
+		Active: make(map[string]domain.ActiveParking),
+	}
+
+	allocator := usecase.NewAllocator(parkingRepo, vehicleRepo, 3600)
+
+	err := allocator.Exit("KL01")
+
+	if err == nil {
+		t.Fatalf("expected error for non-existent vehicle")
+	}
+}
+
+func TestAllocate_ReEntry_AfterTimeAllowed(t *testing.T) {
+
+	level := createLevel(1,2)
+
+	parkingRepo := &mock.MockParkingRepo{
+		Levels: []*domain.Level{level},
+	}
+
+	vehicleRepo := &mock.MockVehicleRepo{
+		Records: map[string]map[int]int64{
+			"KL01": {
+				1: time.Now().Unix() - 4000, // past restriction window
+			},
+		},
+		Active: make(map[string]domain.ActiveParking),
+	}
+
+	allocator := usecase.NewAllocator(parkingRepo, vehicleRepo, 3600)
+
+	vehicle := domain.Vehicle{
+		ID:   "KL01",
+		Type: domain.Small,
+	}
+
+	levelID, _, err := allocator.Allocate(vehicle)
+
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+
+	if levelID != 1 {
+		t.Fatalf("expected level 1 allocation")
 	}
 }

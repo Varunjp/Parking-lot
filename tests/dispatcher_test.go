@@ -51,7 +51,7 @@ func TestDispatcher_PriorityOrder(t *testing.T) {
 		go func(v domain.Vehicle) {
 			defer wg.Done()
 			
-			res := dispatcher.AddRequest(v)
+			res := dispatcher.Park(v)
 			
 			// Safely store result
 			mu.Lock()
@@ -117,7 +117,7 @@ func TestDispatcher_ConcurrentRequests(t *testing.T) {
 				CustomerType: domain.Regular,
 			}
 
-			results[index] = dispatcher.AddRequest(v)
+			results[index] = dispatcher.Park(v)
 		}(i)
 	}
 
@@ -151,10 +151,139 @@ func TestDispatcher_InvalidPriority(t *testing.T) {
 	}
 
 	// Act
-	res := dispatcher.AddRequest(v)
+	res := dispatcher.Park(v)
 
 	// Assert
 	if res.Err == nil {
 		t.Fatalf("expected error for invalid priority")
+	}
+}
+
+func TestDispatcher_ExitSuccess(t *testing.T) {
+
+	level := createLevel(1, 10)
+
+	parkingRepo := &mock.MockParkingRepo{
+		Levels: []*domain.Level{level},
+	}
+
+	vehicleRepo := &mock.MockVehicleRepo{
+		Records: make(map[string]map[int]int64),
+	}
+
+	allocator := usecase.NewAllocator(parkingRepo, vehicleRepo, 3600)
+	dispatcher := usecase.NewDispatcher(allocator)
+
+	v := domain.Vehicle{
+		ID:           "KL01",
+		Type:         domain.Small,
+		CustomerType: domain.Regular,
+	}
+
+	// Park first
+	res := dispatcher.Park(v)
+	if res.Err != nil {
+		t.Fatalf("unexpected error: %v", res.Err)
+	}
+
+	// Exit
+	exitRes := dispatcher.Exit(v.ID)
+	if exitRes.Err != nil {
+		t.Fatalf("expected successful exit, got error: %v", exitRes.Err)
+	}
+}
+
+func TestDispatcher_ExitWithoutParking(t *testing.T) {
+
+	level := createLevel(1, 10)
+
+	parkingRepo := &mock.MockParkingRepo{
+		Levels: []*domain.Level{level},
+	}
+
+	vehicleRepo := &mock.MockVehicleRepo{
+		Records: make(map[string]map[int]int64),
+	}
+
+	allocator := usecase.NewAllocator(parkingRepo, vehicleRepo, 3600)
+	dispatcher := usecase.NewDispatcher(allocator)
+
+	res := dispatcher.Exit("UNKNOWN")
+
+	if res.Err == nil {
+		t.Fatalf("expected error for non-existing vehicle exit")
+	}
+}
+
+func TestDispatcher_DuplicateEntry(t *testing.T) {
+
+	level := createLevel(1, 10)
+
+	parkingRepo := &mock.MockParkingRepo{
+		Levels: []*domain.Level{level},
+	}
+
+	vehicleRepo := &mock.MockVehicleRepo{
+		Records: make(map[string]map[int]int64),
+	}
+
+	allocator := usecase.NewAllocator(parkingRepo, vehicleRepo, 3600)
+	dispatcher := usecase.NewDispatcher(allocator)
+
+	v := domain.Vehicle{
+		ID:           "CAR1",
+		Type:         domain.Small,
+		CustomerType: domain.Regular,
+	}
+
+	// First entry
+	res1 := dispatcher.Park(v)
+	if res1.Err != nil {
+		t.Fatalf("unexpected error: %v", res1.Err)
+	}
+
+	// Second entry (should fail)
+	res2 := dispatcher.Park(v)
+	if res2.Err == nil {
+		t.Fatalf("expected duplicate entry error")
+	}
+}
+
+func TestDispatcher_ReentryRestriction(t *testing.T) {
+
+	level1 := createLevel(1, 5)
+	level2 := createLevel(2, 5)
+
+	parkingRepo := &mock.MockParkingRepo{
+		Levels: []*domain.Level{level1, level2},
+	}
+
+	vehicleRepo := &mock.MockVehicleRepo{
+		Records: make(map[string]map[int]int64),
+	}
+
+	allocator := usecase.NewAllocator(parkingRepo, vehicleRepo, 3600)
+	dispatcher := usecase.NewDispatcher(allocator)
+
+	v := domain.Vehicle{
+		ID:           "CAR1",
+		Type:         domain.Small,
+		CustomerType: domain.Regular,
+	}
+
+	// First park
+	res1 := dispatcher.Park(v)
+	if res1.Err != nil {
+		t.Fatalf("unexpected error: %v", res1.Err)
+	}
+
+	// Exit
+	dispatcher.Exit(v.ID)
+
+	// Re-enter immediately
+	res2 := dispatcher.Park(v)
+
+	if res2.Level == res1.Level {
+		t.Fatalf("expected different level due to re-entry restriction")
 	}
 }

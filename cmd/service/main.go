@@ -40,6 +40,7 @@ func main() {
 
 	// Register routes
 	http.HandleFunc("/park",handler.Park)
+	http.HandleFunc("/exit",handler.Exit)
 
 	// Start HTTP server
 	log.Println("Server running on :"+cfg.HttpPort)

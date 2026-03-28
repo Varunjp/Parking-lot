@@ -26,6 +26,10 @@ type ParkRequest struct {
 	CustomerType	string `json:"customer_type"`
 }
 
+type ExitRequest struct {
+	VehicleID string `json:"vehicle_id"`
+}
+
 // ParkResponse represents the API response returned to the client.
 type ParkResponse struct {
 	Status  	string `json:"status"`				// "success" or "error"
@@ -71,7 +75,7 @@ func (h *Handler) Park(w http.ResponseWriter,r *http.Request) {
 	}
 
 	// Step 4: Call business logic (dispatcher)
-	result := h.dispatcher.AddRequest(vehicle)
+	result := h.dispatcher.Park(vehicle)
 
 	// Step 5: Handle business errors
 	if result.Err != nil {
@@ -87,6 +91,42 @@ func (h *Handler) Park(w http.ResponseWriter,r *http.Request) {
 		Status: "success",
 		Level:  result.Level,
 		Slot:   result.Slot,
+	})
+}
+
+func (h *Handler) Exit(w http.ResponseWriter,r *http.Request) {
+	var req ExitRequest
+
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		writeJSON(w,http.StatusBadRequest,ParkResponse{
+			Status: "error",
+			Message: "invalid request",
+		})
+		return 
+	}
+
+	if req.VehicleID == "" {
+		writeJSON(w,http.StatusBadRequest,ParkResponse{
+			Status: "error",
+			Message: "vehicle_id is requried",
+		})
+		return 
+	}
+
+	result := h.dispatcher.Exit(req.VehicleID)
+
+	if result.Err != nil {
+		writeJSON(w,http.StatusBadRequest,ParkResponse{
+			Status: "error",
+			Message: result.Err.Error(),
+		})
+		return 
+	}
+
+	writeJSON(w,http.StatusOK,ParkResponse{
+		Status: "success",
+		Message: "vehicle exited successfully",
 	})
 }
 

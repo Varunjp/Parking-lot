@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"parking-lot/internal/domain"
 	"sync"
 )
 
@@ -22,12 +23,14 @@ import (
 type VehicleRepo struct {
 	mu sync.RWMutex
 	data map[string]map[int]int64
+	active map[string]domain.ActiveParking
 }
 
 // NewVehicleRepo initializes and returns a new VehicleRepo instance.
 func NewVehicleRepo() *VehicleRepo {
 	return &VehicleRepo{
 		data: make(map[string]map[int]int64),
+		active: make(map[string]domain.ActiveParking),
 	}
 }
 
@@ -75,4 +78,31 @@ func (r *VehicleRepo) SaveEntry(vehicleid string, levelID int,ts int64) {
 	}
 
 	r.data[vehicleid][levelID] = ts
+}
+
+func(r *VehicleRepo) GetActive(id string) (domain.ActiveParking,bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	v,ok := r.active[id]
+	return v,ok 
+}
+
+func (r *VehicleRepo) SaveActive(id string,levelID int, slotID int,slotType *domain.SlotPool, ts int64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.active[id] = domain.ActiveParking{
+		LevelID: levelID,
+		SlotID: slotID,
+		SlotType: slotType,
+		EntryAt: ts,
+	}
+}
+
+func (r *VehicleRepo) RemoveActive(id string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	delete(r.active,id)
 }

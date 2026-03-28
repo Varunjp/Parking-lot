@@ -5,6 +5,13 @@ import (
 	"parking-lot/internal/domain"
 )
 
+type ActionType int 
+
+const (
+	ParkAction ActionType = iota 
+	ExitAction 
+)
+
 // Request represents a parking allocation request.
 //
 // It encapsulates:
@@ -12,6 +19,7 @@ import (
 // - Priority used for scheduling (lower value = higher priority)
 // - A response channel to asynchronously return the allocation result
 type Request struct {
+	Action   ActionType
 	Vehicle  domain.Vehicle // Incoming vehicle requesting a slot
 	Priority int			// Scheduling priority (min-heap: lower = higher priority)
 	RespChan chan Result 	// Channel to send allocation result back to caller
